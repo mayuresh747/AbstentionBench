@@ -50,8 +50,8 @@ class RawResponse(BaseModel):
     prompt: Prompt
     response: str
     # for deepseek and other reasoning models
-    reasoning: None | str = None
-    response_with_reasoning: None | str = None
+    reasoning: Optional[str] = None
+    response_with_reasoning: Optional[str] = None
 
 
 class RawResponses(BaseModel, LoadSaveDataMixin):

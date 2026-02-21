@@ -16,12 +16,25 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
 
-import google.generativeai as genai
-import openai
+try:
+    import openai
+    from openai import AsyncAzureOpenAI, AzureOpenAI
+except ImportError:
+    class DummyOpenAIException(Exception): pass
+    class DummyOpenAI:
+        RateLimitError = DummyOpenAIException
+        BadRequestError = DummyOpenAIException
+        InternalServerError = DummyOpenAIException
+    openai = DummyOpenAI()
+    AsyncAzureOpenAI = None
+    AzureOpenAI = None
 import torch
-from openai import AsyncAzureOpenAI, AzureOpenAI
 from transformers import AutoTokenizer, pipeline
-from vllm import LLM, SamplingParams
+try:
+    from vllm import LLM, SamplingParams
+except ImportError:
+    LLM = None
+    SamplingParams = None
 
 from recipe.system_prompt import SYSTEM_PROMPT
 
@@ -1286,3 +1299,79 @@ if __name__ == "__main__":
             ]
         )
     )
+import requests
+import json
+import logging
+from recipe.models import InferenceModel
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+class UnifiedAPIModel(InferenceModel):
+    def __init__(
+        self,
+        model_name,
+        max_completion_tokens=None,
+        temperature=0.8,
+        seed=None,
+    ):
+        self.model_name = model_name
+        self.max_completion_tokens = max_completion_tokens
+        self.temperature = temperature
+        self.seed = seed
+        self.host = "http://localhost:8001"
+
+    def respond(self, questions: list[str]) -> list[str]:
+        if isinstance(questions, str):
+            logger.info("Wrapping string question into a list.")
+            questions = [questions]
+
+        responses = []
+        for question in questions:
+            try:
+                payload = {
+                    "model": self.model_name,
+                    "messages": [
+                        {"role": "user", "content": question}
+                    ],
+                    "temperature": self.temperature,
+                }
+                if self.max_completion_tokens:
+                     payload["max_tokens"] = self.max_completion_tokens
+                     
+                response = requests.post(f"{self.host}/v1/messages", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                
+                if "choices" in data: # OpenAI format fallback if server supports it
+                     generated_text = data["choices"][0]["message"]["content"]
+                elif "content" in data and isinstance(data["content"], list): # Anthropic format
+                     generated_text = data["content"][0]["text"]
+                else:
+                     generated_text = "Error parsing response: " + json.dumps(data)
+
+                logger.info(generated_text)
+                responses.append(generated_text)
+            except Exception as e:
+                logger.error(f"Exception for prompt: {question} - {e}")
+                responses.append("")
+
+        return responses
+
+class GPT51Rationalist(UnifiedAPIModel):
+    def __init__(self, max_tokens=None, temperature=0.8, seed=None):
+        super().__init__(
+            model_name="gpt51-rationalist",
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+            seed=seed,
+        )
+
+class Sonnet45Normal(UnifiedAPIModel):
+    def __init__(self, max_tokens=None, temperature=0.8, seed=None):
+        super().__init__(
+            model_name="sonnet45-normal",
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+            seed=seed,
+        )

@@ -13,6 +13,7 @@ import os
 from collections import defaultdict
 from itertools import product
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import fire
 from omegaconf import OmegaConf
@@ -154,7 +155,7 @@ class JobManager:
             return relative_paths
         return complete_paths
 
-    def get_latest_result_path(self, model: str, dataset: str) -> str | None:
+    def get_latest_result_path(self, model: str, dataset: str) -> Optional[str]:
         """
         model and dataset are config names
 

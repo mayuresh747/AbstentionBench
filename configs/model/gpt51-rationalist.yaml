@@ -1,0 +1,9 @@
+# @package _global_
+
+model_name: GPT51Rationalist
+
+module:
+  _target_: recipe.models.${model_name}
+  max_tokens: 4000
+  temperature: 0.8
+  seed: ${seed}

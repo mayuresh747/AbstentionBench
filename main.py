@@ -13,16 +13,23 @@ from pathlib import Path
 from pprint import pformat
 from typing import List, Optional
 
-import git
+try:
+    import git
+except ImportError:
+    git = None
 import hydra
-import submitit
+try:
+    import submitit
+    from submitit.helpers import clean_env
+except ImportError:
+    submitit = None
+    clean_env = None
 import torch.distributed as dist
 import transformers
 import yaml
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate, to_absolute_path
 from omegaconf import DictConfig, OmegaConf
-from submitit.helpers import clean_env
 
 from recipe.abstention import Responses
 from recipe.inference import InferencePipeline, RawResponses
@@ -31,11 +38,12 @@ from recipe.models import InferenceModel
 logger = logging.getLogger(__name__)
 
 
-MODELS_WITHOUT_GPU = ["DummyModel", "GPT4oAPI", "o1API", "Gemini15ProAPI"]
+MODELS_WITHOUT_GPU = ["DummyModel", "GPT4oAPI", "o1API", "Gemini15ProAPI", "GPT51Rationalist", "Sonnet45Normal"]
 
 LLM_JUDGES_WITHOUT_GPU = [
     "ContainsAbstentionKeyword",
     "LLMJudgeGPT4o",
+    "LLMJudgeSonnet45Normal",
 ]
 
 
@@ -419,7 +427,7 @@ def get_git_hash() -> Optional[str]:
         logger.error(e)
 
 
-def create_log_and_save_dirs(config, hydra_dir: str | None = None):
+def create_log_and_save_dirs(config, hydra_dir: Optional[str] = None):
     """
     Create log, save directories, hydra_dir if provided and set permissions
     777 for directories and 2 levels up of parent directories
